@@ -1732,6 +1732,7 @@ function renderDevoirs(){
         ${nonCorr.map(s=>`<button class="btn-sm" onclick="openFicheAndCorr(${s.id},${d.id})">${s.name.split(' ')[0]} +</button>`).join('')}
         ${!nonCorr.length?'<span style="font-size:12px;color:#1c4532;font-weight:600">Tous corrigé·e·s ✓</span>':''}
         <button class="btn-sm" style="font-size:11px;background:#f0fff4;border-color:#9ae6b4;color:#1c4532" onclick="genererTousBilans(${d.id})">↓ Tous les bilans</button>
+        <button class="btn-sm" style="font-size:11px;background:#eef4ff;border-color:#85a9f5;color:#1a3b8a" onclick="exportCSVPronote(${d.id})">↓ CSV Pronote</button>
         <button class="btn-sm" style="margin-left:auto;color:#9b1c1c;border-color:#f5b3b3;font-size:11px" onclick="supprimerDevoir(${d.id})">✕ Supprimer</button>
       </div></div>`;}).join('');
 }
@@ -3278,6 +3279,37 @@ function _audioWaveStop(eleveId){
 function _audioWaveReset(eleveId){_audioWaveStop(eleveId);}
 
 // ─── GÉNÉRER TOUS LES BILANS D'UN DEVOIR ─────────────────────────────────────
+function exportCSVPronote(devoirId){
+  const d=devoirs.find(x=>x.id===devoirId);if(!d)return;
+  const fcD=document.getElementById('filter-classe-devoirs')?.value||'';
+  const cidD=d.classeId?String(d.classeId):fcD;
+  const studentsD=cidD?students.filter(s=>String(s.classeId)===cidD):students;
+  const corriges=studentsD.filter(s=>s.productions.find(p=>p.devoirId===devoirId&&!p.partiel));
+  if(!corriges.length){showToast('Aucune correction complète pour ce devoir','#c0392b');return;}
+
+  // En-tête compatible Pronote : Nom;Prénom;Note
+  const lines=['Nom;Prénom;Note sur 20'];
+  corriges.forEach(s=>{
+    const p=s.productions.find(x=>x.devoirId===devoirId);
+    const note=p?.noteFinaleSur20??'';
+    // Séparer prénom et nom (on suppose "Prénom Nom")
+    const parts=s.name.trim().split(' ');
+    const prenom=parts[0]||'';
+    const nom=parts.slice(1).join(' ')||prenom;
+    lines.push(`${nom};${prenom};${note}`);
+  });
+
+  const csv=lines.join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}); // BOM pour Excel/Pronote
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`notes-${d.titre.replace(/\s+/g,'-')}-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},1000);
+  showToast(`CSV exporté (${corriges.length} élèves)`,'#1a3b8a');
+}
+
 function genererTousBilans(devoirId){
   const d=devoirs.find(x=>x.id===devoirId);if(!d)return;
   const eleves=students.filter(s=>s.productions.find(p=>p.devoirId===devoirId));
